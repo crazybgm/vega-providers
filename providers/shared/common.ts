@@ -150,6 +150,56 @@ export function isPlayableUrl(value: string | undefined | null): value is string
 }
 
 /**
+ * base64 → UTF-8 文本。
+ *
+ * 沙盒里没有 Node 的 Buffer，也没有 Buffer.from，所以手写解码。
+ * 站点常用 base64 藏地址（KissJAV 的 flashvars 就是）。
+ */
+export function decodeBase64Utf8(input: string): string {
+  const value = input.trim().replace(/\s+/g, '');
+  if (!value || /[^A-Za-z0-9+/=]/.test(value)) return '';
+
+  try {
+    const binary =
+      typeof atob === 'function'
+        ? atob(value)
+        : manualAtob(value);
+    if (typeof TextDecoder !== 'undefined') {
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+      return new TextDecoder('utf-8').decode(bytes);
+    }
+    // 兜底：地址与标题基本都是 ASCII，按 latin1 还原即可。
+    let escaped = '';
+    for (let i = 0; i < binary.length; i += 1) {
+      escaped += `%${`00${binary.charCodeAt(i).toString(16)}`.slice(-2)}`;
+    }
+    return decodeURIComponent(escaped);
+  } catch {
+    return '';
+  }
+}
+
+function manualAtob(value: string): string {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+  let output = '';
+  let buffer = 0;
+  let bits = 0;
+  for (const char of value) {
+    if (char === '=') break;
+    const index = chars.indexOf(char);
+    if (index < 0) continue;
+    buffer = (buffer << 6) | index;
+    bits += 6;
+    if (bits >= 8) {
+      bits -= 8;
+      output += String.fromCharCode((buffer >> bits) & 0xff);
+    }
+  }
+  return output;
+}
+
+/**
  * 判断媒体地址是否带时效签名。多Video 站点普遍如此，
  * 过期后必须重新解析才能拿到新地址（见需求文档第七/十章）。
  */

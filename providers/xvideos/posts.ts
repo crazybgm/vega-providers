@@ -134,7 +134,7 @@ export const getPosts = async function ({
 }): Promise<Post[]> {
   const slug = (filter || '').trim().replace(/^\/+|\/+$/g, '');
 
-  if (!slug || slug === 'home' || slug === 'categories') {
+  if (!slug || slug === 'home') {
     // 站点首页是推荐位，不支持翻页，如实只返回第 1 页。
     if (page > 1) return [];
     const url = `${DEFAULT_BASE}/`;
