@@ -1,20 +1,47 @@
-[
-  {
-    "display_name": "XVideos",
-    "value": "xvideos",
-    "version": "1.0",
-    "icon": "",
-    "type": "global",
-    "hasSettings": true,
-    "disabled": false
-  },
-  {
-    "display_name": "Tube8",
-    "value": "tube8",
-    "version": "1.0",
-    "icon": "",
-    "type": "global",
-    "hasSettings": true,
-    "disabled": false
-  }
+﻿[
+    {
+        "value":  "xvideos",
+        "version":  "1.0",
+        "hasSettings":  true,
+        "icon":  "",
+        "type":  "global",
+        "disabled":  false,
+        "display_name":  "XVideos"
+    },
+    {
+        "value":  "tube8",
+        "version":  "1.0",
+        "hasSettings":  true,
+        "icon":  "",
+        "type":  "global",
+        "disabled":  false,
+        "display_name":  "Tube8"
+    },
+    {
+        "value":  "kissjav",
+        "version":  "1.0",
+        "hasSettings":  true,
+        "icon":  "",
+        "type":  "global",
+        "disabled":  false,
+        "display_name":  "KissJAV"
+    },
+    {
+        "value":  "redtube",
+        "version":  "1.0",
+        "hasSettings":  true,
+        "icon":  "",
+        "type":  "global",
+        "disabled":  false,
+        "display_name":  "RedTube"
+    },
+    {
+        "value":  "youporn",
+        "version":  "1.0",
+        "hasSettings":  true,
+        "icon":  "",
+        "type":  "global",
+        "disabled":  false,
+        "display_name":  "YouPorn"
+    }
 ]

@@ -25,6 +25,7 @@ console.log(`Found ${providerDirs.length} providers to build`);
 async function buildProvider(providerName) {
   const providerPath = path.join(providersDir, providerName);
   const distPath = path.join(__dirname, "dist", providerName);
+  const failed = [];
 
   // Create dist directory
   if (!fs.existsSync(distPath)) {
@@ -143,10 +144,13 @@ async function buildProvider(providerName) {
         `✓ ${providerName}/${moduleName}.js (${(code.length / 1024).toFixed(1)}kb)`,
       );
     } catch (error) {
+      // A provider module that fails to bundle is a build failure, not a warning:
+      // the app would load a missing file and only discover it at runtime.
       console.error(
         `✗ Error building ${providerName}/${moduleName}:`,
         error.message,
       );
+      failed.push(`${providerName}/${moduleName}`);
     }
   }
 
@@ -217,10 +221,17 @@ async function buildAll() {
   );
 
   const endTime = Date.now();
+  const failures = results.flatMap((r) => r.failed || []);
   console.log(
     `\n✓ Built ${totalModules} modules from ${providerDirs.length} providers in ${((endTime - startTime) / 1000).toFixed(2)}s`,
   );
   console.log(`  Total size: ${(totalSize / 1024).toFixed(1)}kb`);
+
+  if (failures.length) {
+    console.error(`\n✗ Build failed for ${failures.length} module(s):`);
+    failures.forEach((name) => console.error(`    - ${name}`));
+    process.exitCode = 1;
+  }
 }
 
 buildAll().catch((error) => {
