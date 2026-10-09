@@ -13,7 +13,10 @@ const providerDirs = fs
     (dirent) =>
       dirent.isDirectory() &&
       !dirent.name.startsWith(".") &&
-      dirent.name !== "extractors",
+      // "shared" holds cross-site helpers, not a provider. Building it would
+      // emit a dist/shared/ directory that no manifest entry refers to.
+      dirent.name !== "extractors" &&
+      dirent.name !== "shared",
   )
   .map((dirent) => dirent.name);
 

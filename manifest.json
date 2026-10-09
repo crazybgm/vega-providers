@@ -1,7 +1,16 @@
 [
   {
-    "display_name": "EXAMPLE",
-    "value": "example",
+    "display_name": "XVideos",
+    "value": "xvideos",
+    "version": "1.0",
+    "icon": "",
+    "type": "global",
+    "hasSettings": true,
+    "disabled": false
+  },
+  {
+    "display_name": "Tube8",
+    "value": "tube8",
     "version": "1.0",
     "icon": "",
     "type": "global",
