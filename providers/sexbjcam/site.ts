@@ -4,10 +4,16 @@ export const DEFAULT_BASE = 'https://sexbjcam.com';
 export const PROVIDER_VERSION = '1.0.0';
 
 /**
- * 播放入口在第三方 embed 域 `recordplay.biz` 上，
- * 所以 Stream 的 server 标成 embed 域名，如实反映来源。
+ * 播放入口在第三方 embed 域上。
+ *
+ * ⚠️ **不要把 embed 域写死**：实测站点换过域名
+ * （先是 recordplay.biz，现在是 playrecord.biz）。
+ * 匹配域名字面量会在换域名后静默失效——详情页找不到 embed，
+ * getStream 跟着一起失败。统一用 `isEmbedUrl` 按路径形状判断。
  */
-export const EMBED_BASE = 'https://recordplay.biz';
+export function isEmbedUrl(url: string): boolean {
+  return !/sexbjcam\.com/i.test(url) && /\/(?:e|embed)\/[A-Za-z0-9_-]{4,}/.test(url);
+}
 
 export const CARD = 'article.loop-video, article[data-video-id]';
 

@@ -1,0 +1,24 @@
+﻿fix(sexbjcam): probe HLS availability instead of guessing from the index
+
+Two defects found by measuring the real responses rather than trusting the
+reference notes.
+
+1. The "sort by descending hlsN" rule was backwards.
+   The reference card claimed hls2 returns 403 and only a higher number works.
+   Measured across 4 independent samples, each on a different video:
+     hls2 (.m3u8) -> HTTP 200   (usable)
+     hls3 (.txt)  -> HTTP 404   (dead)
+   So the old rule reliably picked the dead entry. getStream now probes each
+   candidate and keeps only the ones that respond 2xx/3xx. Candidates are
+   few (2-3), so the extra request buys certainty instead of a guess.
+   Verified 3 runs: each returns "HLS 2" and that URL answers HTTP 200.
+
+2. The embed host was hardcoded as recordplay.biz.
+   The site has since moved to playrecord.biz, so the lookup silently found
+   no embed iframe and getStream failed with "detail page has no recordplay
+   embed entry". Both meta.ts and stream.ts matched on that domain literal.
+   Replaced with isEmbedUrl(), which recognises the /e/{hash} and
+   /embed/{hash} path shapes, so a future host change does not break it.
+
+Stream count for this provider drops from 2 to 1 because the dead entry is no
+longer reported. Test: sexbjcam 40 posts / meta / 1 stream -> PASSED.

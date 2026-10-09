@@ -6,7 +6,7 @@ import {
   pickImage,
   resolveUrl,
 } from '../shared/common';
-import {EMBED_BASE, SITE_NAME, videoUrlFromRef} from './site';
+import {SITE_NAME, isEmbedUrl, videoUrlFromRef} from './site';
 
 /** ISO8601 时长 `P0DT1H4M0S` → `1:04:00`。 */
 function parseIsoDuration(value: string | undefined): string | undefined {
@@ -97,14 +97,15 @@ export const getMeta = async function ({
   const categories = collect(/\/category\//);
   const tags = collect(/\/tag\//);
 
-  // 播放入口：页面里**没有 <video>**，只有 recordplay.biz 的 iframe。
+  // 播放入口：页面里**没有 <video>**，只有第三方 embed 域的 iframe。
+  // 站点换过 embed 域名，所以按路径形状识别而不是匹配域名字面量。
   const embedSrc =
     $('meta[itemprop="embedUrl"]').attr('content') ||
     $('div.responsive-player iframe[src]').first().attr('src') ||
     $('iframe[src]')
       .toArray()
       .map(node => $(node).attr('src') || '')
-      .find(src => src.includes('recordplay.biz')) ||
+      .find(src => isEmbedUrl(src)) ||
     '';
   const embedUrl = embedSrc ? resolveUrl(url, embedSrc) : '';
 

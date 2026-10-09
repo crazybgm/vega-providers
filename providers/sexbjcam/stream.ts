@@ -1,20 +1,16 @@
 import {Stream, ProviderContext} from '../types';
 import {ProviderFailure, fetchHtml, isPlayableUrl, resolveUrl} from '../shared/common';
-import {EMBED_BASE, SITE_NAME, videoUrlFromRef} from './site';
+import {SITE_NAME, isEmbedUrl, videoUrlFromRef} from './site';
 import {unpackAll} from './jsPacker';
 
 /**
- * 流程：详情页 → recordplay.biz 的 `/e/{hash}` embed 页 → 还原压缩包 → 取 links。
- *
- * ⚠️ 本次实测中最关键的坑：**HLS 必须按编号从大到小排，绝不能按扩展名挑**。
- * 站点把可用的 hls3 排在前面本身就是容灾顺序；按「优先 .m3u8」去挑会选中
- * hls2，而它在真实网络下直接 403 Forbidden（nginx）。
- * 另外 `.txt` 扩展名完全没问题 —— CDN 返回
- * `Content-Type: application/vnd.apple.mpegurl`，播放器按 type 而非扩展名建源。
+ * 流程：详情页 → 第三方 embed 页 → 还原压缩包 → 取 links。
  *
  * ⚠️ 本站**只有 HLS 多清晰度清单，没有整文件 MP4** → 不暴露下载能力。
- * ⚠️ embed 地址带时效签名（`e=129600`），过期必须重走「详情 → embed」，
- * 不能重放缓存下来的 URL。
+ * ⚠️ embed 地址带时效签名，过期必须重走「详情 → embed」，不能重放缓存的 URL。
+ *
+ * 哪个 HLS 条目可用**不能靠编号或扩展名推断**——实测结论与最初的参考卡相反，
+ * 详见下面排序处的注释。因此这里逐条探测可用性。
  */
 
 function extractEmbedSrc(html: string, cheerio: ProviderContext['cheerio'], base: string): string {
@@ -25,7 +21,7 @@ function extractEmbedSrc(html: string, cheerio: ProviderContext['cheerio'], base
     $('iframe[src]')
       .toArray()
       .map(node => $(node).attr('src') || '')
-      .find(item => item.includes('recordplay.biz')) ||
+      .find(item => isEmbedUrl(item)) ||
     '';
   return src ? resolveUrl(base, src) : '';
 }
@@ -46,7 +42,12 @@ export const getStream = async function ({
   // Vega 会把 getMeta 里 directLinks 的地址再传回本函数，
   // 而那里放的是 **embed 地址**（因为详情页本身没有 <video>）。
   // 所以这里两种入口都要认：embed 地址直接用，详情地址才去取 embed。
-  const isEmbed = /recordplay\.biz/i.test(link);
+  //
+  // ⚠️ 不要按域名判断 embed——站点的 embed 域会变
+  // （实测见过 recordplay.biz，现在是 playrecord.biz），
+  // 写死域名字面量会在换域名后静默失效：详情页找不到 embed，
+  // getStream 跟着一起失败。改用 isEmbedUrl 按路径形状识别。
+  const isEmbed = isEmbedUrl(link);
   const detailUrl = isEmbed ? '' : videoUrlFromRef(link);
 
   let embedUrl = '';
@@ -107,12 +108,50 @@ export const getStream = async function ({
     );
   }
 
-  // ⚠️ 编号从大到小：hls3 是可用的，hls2 会 403。
-  entries.sort((a, b) => b.index - a.index);
+  // ⚠️ 不要靠编号或扩展名猜哪个可用。
+  //
+  // 早期参考卡称「按扩展名挑会选中 403 的 hls2，可用的是更高编号」，
+  // 但 2026-10 的实测（4 次独立取样，每次取不同视频）结论正好相反：
+  //   hls2 (.m3u8) -> HTTP 200（可用）
+  //   hls3 (.txt)  -> HTTP 404（不可用）
+  // 站点把 hls2 当主源，hls3 是失效的备用条目。
+  // `.txt` 扩展名本身不是问题（CDN 返回 application/vnd.apple.mpegurl）。
+  //
+  // 因此这里**逐条实测**：只保留响应正常的地址，一条都拿不到才报错。
+  // 候选通常只有 2~3 条，多一次请求换来的是「一定能播」而不是「猜一个」。
+  const usable: {index: number; url: string}[] = [];
+  for (const entry of entries) {
+    try {
+      const probe = await axios.request({
+        url: entry.url,
+        method: 'GET',
+        headers: commonHeaders,
+        signal,
+        timeout: 10000,
+        // 播放清单通常很小，读一点就够判断可用性。
+        maxContentLength: 8192,
+        validateStatus: () => true,
+      });
+      if (probe.status >= 200 && probe.status < 400) usable.push(entry);
+    } catch {
+      // 这条探测失败就跳过，继续试下一条。
+    }
+  }
+
+  if (!usable.length) {
+    // 站点整体不可用与「地址解析错」要区分开，便于判断问题在哪。
+    throw new ProviderFailure(
+      'unavailable',
+      'sexbjcam getStream: every HLS URL on the embed page failed to respond (site or CDN unavailable)',
+    );
+  }
+
+  // 探测成功的按编号升序，编号小的是站点主源。
+  usable.sort((a, b) => a.index - b.index);
 
   const seen = new Set<string>();
   const streams: Stream[] = [];
-  for (const entry of entries.slice(0, 3)) {
+  for (const entry of usable.slice(0, 3)) {
     if (seen.has(entry.url)) continue;
     seen.add(entry.url);
     streams.push({
