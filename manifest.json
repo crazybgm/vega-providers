@@ -70,5 +70,14 @@
         "type":  "global",
         "disabled":  false,
         "display_name":  "SexBJCam"
+    },
+    {
+        "value":  "pornmd",
+        "version":  "1.0",
+        "hasSettings":  true,
+        "icon":  "",
+        "type":  "global",
+        "disabled":  false,
+        "display_name":  "PornMD (Cross-site Search)"
     }
 ]

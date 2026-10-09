@@ -1,0 +1,27 @@
+﻿feat(pornmd): add cross-site search provider
+
+Corrects an earlier conclusion in this project. A previous investigation
+looked only at /c/asian, saw no video cards, and concluded PornMD was
+client-rendered and therefore unusable. That was wrong: the search and
+popular pages do server-render results, and search is the site's whole
+purpose.
+
+What was actually there all along:
+- Cards are div.card[data-public-id] with the title on <a title>, the cover
+  on an img served from c*.ttcache.com, and duration/quality in .badge.
+- Each card links to /out/?l=<base64>, which decodes to
+  <garbage><source url><NUL><base64 JSON metadata>>. The real target is
+  recovered by pulling printable ASCII out of the decoded bytes.
+  230 of 240 links decode (96%); the rest are dead on the source side.
+
+Playback comes from the source sites, not from PornMD, so support is split
+per source. Measured distribution over 230 decoded results:
+  www.eporner.com  154 (67%)
+  xh.partners       34 (15%)
+  xgroovy.com        6
+  18 others        1-2 each
+Implemented eporner and xh.partners (82% combined) and made the rest fail
+with an explicit "source site not supported" rather than guessing a URL.
+
+Verified: list 109, search "Asian" 115, meta 5/5, stream 6/6 on implemented
+sources. /new and /rating return 403, so they are not offered as entries.
