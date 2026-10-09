@@ -276,7 +276,47 @@ export async function fetchHtml(
 }
 
 /**
- * 空结果时再判一次验证页：列表/搜索拿不到任何条目时，区分
+ * 取 JSON（PeerTube 类 API）。
+ *
+ * 必须区分三件事，不能一律报「解析失败」：
+ * 1. 站点把 API 请求挡回了一个 HTML 页面（Cloudflare 常见）
+ * 2. 那个 HTML 恰好是**验证页** → 明确提示用户手动过验证
+ * 3. 真的是非法 JSON → 解析错误
+ */
+export async function fetchJson<T>(
+  provider: string,
+  operation: string,
+  run: () => Promise<{ data: unknown; status?: number }>,
+  signal?: AbortSignal,
+): Promise<T> {
+  const data = await request<unknown>(provider, operation, run, signal);
+
+  if (typeof data === 'string') {
+    const text = data.trimStart();
+    const looksHtml = text.startsWith('<') || text.includes('<!DOCTYPE html');
+    if (looksHtml) {
+      if (looksLikeChallengePage(text)) {
+        throw new ProviderFailure(
+          'challenge',
+          `${provider} ${operation}: the site blocked the API request with a verification page`,
+        );
+      }
+      throw new ProviderFailure(
+        'parse',
+        `${provider} ${operation}: the site returned HTML instead of JSON (request blocked)`,
+      );
+    }
+    try {
+      return JSON.parse(data) as T;
+    } catch {
+      throw new ProviderFailure('parse', `${provider} ${operation}: response is not valid JSON`);
+    }
+  }
+
+  return data as T;
+}
+
+/** 空结果时再判一次验证页：列表/搜索拿不到任何条目时，区分
  * 「搜索确实没结果」和「被验证页挡住了」。两种都返回 false 时调用方自己决定。
  */
 export function asChallengeOrEmpty(

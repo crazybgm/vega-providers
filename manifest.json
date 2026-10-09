@@ -43,5 +43,23 @@
         "type":  "global",
         "disabled":  false,
         "display_name":  "YouPorn"
+    },
+    {
+        "value":  "xhamster",
+        "version":  "1.0",
+        "hasSettings":  true,
+        "icon":  "",
+        "type":  "global",
+        "disabled":  false,
+        "display_name":  "xHamster"
+    },
+    {
+        "value":  "pigav",
+        "version":  "1.0",
+        "hasSettings":  true,
+        "icon":  "",
+        "type":  "global",
+        "disabled":  false,
+        "display_name":  "PIGAV"
     }
 ]
