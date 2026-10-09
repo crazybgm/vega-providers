@@ -14,6 +14,28 @@
 | xHamster | `xhamster` | ✅ | ✅ | 1 条（仅 HLS） | ❌ 见下 |
 | PIGAV | `pigav` | ✅ | ✅ | 2 条（HLS + MP4） | ✅ |
 | SexBJCam | `sexbjcam` | ✅ | ✅ | 最多 3 条（仅 HLS） | ❌ 见下 |
+| PornMD | `pornmd` | ✅ | ✅ | 按源站分流，见下 | 视源站 |
+
+### PornMD：跨站聚合搜索（与其他 8 个不同）
+
+PornMD 自己**不托管视频**，它把各站结果汇到一起，每条给一个
+`/out/?l=<base64>` 跳转链接。所以它没有详情页，也没有自己的播放器；
+播放地址来自**原始站点**。
+
+实测源站分布（230 条可解结果）：
+
+| 源站 | 条数 | 占比 | 是否实现 |
+|---|---|---|---|
+| `www.eporner.com` | 154 | 67% | ✅ |
+| `xh.partners` | 34 | 15% | ✅ |
+| `xgroovy.com` | 6 | 3% | ❌ |
+| 其余 18 个站 | 各 1~2 | ~15% | ❌ |
+
+只实现前两个（合计 82%）。其余源站会明确报
+`source site "xxx" is not supported yet`——**不猜地址**，
+猜出来的地址只会让播放失败更难排查。
+
+`/new` 与 `/rating` 实测 403（疑似需登录），因此未作为入口暴露。
 
 「下载」列为 ❌ 的两项是**站点能力限制**，不是实现缺失：
 
@@ -66,6 +88,7 @@ providers/
     meta.ts               getMeta
     stream.ts             getStream
     jsPacker.ts           （仅 sexbjcam）Dean Edwards 压缩包纯 JS 还原
+  pornmd/                跨站聚合：/out/?l= 的 base64 二进制解码在 site.ts
 tests/
   provider-test-context.js 沙盒环境模拟
   test-providers.js        端到端测试入口
@@ -123,19 +146,30 @@ tests/
 | 片源 | 列表 | 详情 | 播放源 | 结论 |
 |---|---|---|---|---|
 | xvideos | 48 条 | ✅ | 3 条 | PASSED |
-| tube8 | 36 条 | ✅ | 4 条 | PASSED |
-| kissjav | 30 条 | ✅ | 1 条（904Kbps） | PASSED |
-| redtube | ✅ | ✅ | 4 条（720/480） | PASSED |
-| youporn | ✅ | ✅ | 4 条（1080/720） | PASSED |
-| xhamster | ✅ | ✅ | 1 条 | PASSED |
-| pigav | ✅ | ✅ | 2 条（HLS + 1080） | PASSED |
-| sexbjcam | 40 条 | ✅ | 2 条 | PASSED（站点间歇 502，见下） |
+| tube8 | 28 条 | ✅ | 4 条 | PASSED |
+| kissjav | 30 条 | ✅ | 1 条（MP4 直链） | PASSED |
+| redtube | 71 条 | ✅ | 4 条（720/480） | PASSED |
+| youporn | 68 条 | ✅ | 4 条（1080/720） | PASSED |
+| xhamster | 54 条 | ✅ | 1 条 | PASSED |
+| pigav | 24 条 | ✅ | 2 条（HLS + 1080） | PASSED |
+| sexbjcam | 40 条 | ✅ | 1 条 | 间歇（站点波动，见下） |
+| pornmd | 109 条（搜索 115） | ✅ | 5/5（在已实现源站上） | PASSED |
 
-### 两项需要说明的测试状态
+### 需要说明的测试状态
 
-1. **SexBJCam 的 HLS 编号排序未验证**。实现按编号降序（依据参考卡的设备实测记录），但在尝试逐条请求 `hls2` / `hls3` 对比时，站点正处于持续 502 状态（一次连续 10 次采样，200 命中 0 次）。站点恢复后需补测。
+1. **SexBJCam 站点本身不稳定**。列表解析始终正常（40 条），播放源也成功取到过
+   （1 条 HLS，实测 HTTP 200），但它与自己的 embed/CDN `playrecord.biz` 是两套
+   独立可用性——出现过「站点 200 而 embed 连不上」。开发全程它在 200 / 403 / 502 / 000
+   之间波动，限流还会按站点轮转。这是站点侧行为，不是 Provider 代码缺陷。
+   详见 `../docs/site-availability.md`。
 
-2. **PornMD 未交付**。实测其搜索结果**完全由客户端 JS 渲染**：HTML 里没有视频卡片（`<img>` 只有 6 个，全是 logo 与徽章），内嵌 JSON 为 `{"crossSiteHostnames":[]}`，说明跨站源是运行时填充的。Vega 沙盒不执行页面脚本，静态抓取拿不到任何条目。详见 `../docs/site-availability.md`。
+2. **PornMD 的 HLS 排序结论已被实测推翻**（与早先的参考卡相反）。
+   实测 `hls2` 返回 200（站点主源）、`hls3` 返回 404（失效备用），
+   所以不能按编号降序取。现改为**逐条探测可用性**，只保留响应 2xx/3xx 的地址。
+   连续 3 次运行均返回 `HLS 2` 且实测 200。
+
+3. **PornMD 的播放源按源站分流**，只有 eporner 与 xh.partners 已实现
+   （合计覆盖 82%）。未实现的源站会明确报「尚未支持」，这是设计行为，不是缺陷。
 
 ## 与官方模板的关系
 
