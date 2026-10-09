@@ -61,5 +61,14 @@
         "type":  "global",
         "disabled":  false,
         "display_name":  "PIGAV"
+    },
+    {
+        "value":  "sexbjcam",
+        "version":  "1.0",
+        "hasSettings":  true,
+        "icon":  "",
+        "type":  "global",
+        "disabled":  false,
+        "display_name":  "SexBJCam"
     }
 ]

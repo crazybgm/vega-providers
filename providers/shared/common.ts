@@ -207,7 +207,13 @@ export function hasExpirySignature(url: string): boolean {
   return /,\d{9,13}(?:\?|$|&|,)/.test(url) || /[?&]secure=/i.test(url) || /[?&]token=/i.test(url);
 }
 
-/** 统一的 axios 调用包装：超时、取消、失败分类。 */
+/**
+ * 统一的 axios 调用包装：超时、取消、失败分类。
+ *
+ * 502/503/504 这类**上游临时错误**会重试一次：实测站点本身是 200，
+ * 偶发 502 来自链路而非站点，重试一次即可拿到正确结果。
+ * 4xx 不重试——重试既救不回来又会加重对方负担。
+ */
 export async function request<T = string>(
   provider: string,
   operation: string,
@@ -217,27 +223,39 @@ export async function request<T = string>(
   if (signal?.aborted) {
     throw new ProviderFailure('network', `${provider} ${operation} cancelled`);
   }
-  try {
-    const response = await run();
-    const status = response.status ?? 200;
-    if (status === 404) {
-      throw new ProviderFailure('not-found', `${provider} ${operation}: content not found (HTTP 404)`);
+
+  // 只对 502/503/504 与无响应的网络抖动重试一次。
+  const TRANSIENT = [502, 503, 504];
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      const response = await run();
+      const status = response.status ?? 200;
+      if (status === 404) {
+        throw new ProviderFailure('not-found', `${provider} ${operation}: content not found (HTTP 404)`);
+      }
+      if (status < 200 || status >= 300) {
+        throw new ProviderFailure('http-status', `${provider} ${operation}: unexpected HTTP ${status}`);
+      }
+      return response.data;
+    } catch (error) {
+      if (error instanceof ProviderFailure) throw error;
+      if (signal?.aborted) {
+        throw new ProviderFailure('network', `${provider} ${operation} cancelled`);
+      }
+      const status = (error as { response?: { status?: number } })?.response?.status;
+      // 还有重试机会，且是上游临时错误 → 再试一次。
+      if (attempt === 0 && (status === undefined || TRANSIENT.includes(status))) {
+        continue;
+      }
+      if (status !== undefined) {
+        throw new ProviderFailure('http-status', `${provider} ${operation}: HTTP ${status}`);
+      }
+      throw new ProviderFailure('network', `${provider} ${operation}: network error`);
     }
-    if (status < 200 || status >= 300) {
-      throw new ProviderFailure('http-status', `${provider} ${operation}: unexpected HTTP ${status}`);
-    }
-    return response.data;
-  } catch (error) {
-    if (error instanceof ProviderFailure) throw error;
-    if (signal?.aborted) {
-      throw new ProviderFailure('network', `${provider} ${operation} cancelled`);
-    }
-    const status = (error as { response?: { status?: number } })?.response?.status;
-    if (status !== undefined) {
-      throw new ProviderFailure('http-status', `${provider} ${operation}: HTTP ${status}`);
-    }
-    throw new ProviderFailure('network', `${provider} ${operation}: network error`);
   }
+
+  // 两轮都没拿到结果：只可能是异常路径走到这里。
+  throw new ProviderFailure('network', `${provider} ${operation}: request failed`);
 }
 
 /**
